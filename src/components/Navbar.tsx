@@ -18,12 +18,6 @@ export default async function Navbar() {
           <div className="flex items-center space-x-4">
             {session?.user ? (
               <>
-                <Link
-                  href="/chat"
-                  className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  Chat
-                </Link>
                 <span className="text-gray-700 text-sm">
                   Welcome, {session.user.name || session.user.email}
                 </span>

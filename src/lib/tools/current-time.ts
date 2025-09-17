@@ -12,7 +12,7 @@ export const currentTimeTool = createTool({
     timezone: z.string().describe("使用されたタイムゾーン"),
     timestamp: z.string().describe("ISO形式のタイムスタンプ")
   }),
-  execute: async ({ context: { timezone = "Asia/Tokyo" } }) => {
+  execute: async ({ timezone = "Asia/Tokyo" }) => {
     const now = new Date()
     const formatter = new Intl.DateTimeFormat("ja-JP", {
       timeZone: timezone,
