@@ -258,13 +258,6 @@ export function ChatInterface() {
                       }
                     })}
                   </div>
-                  <div className={`text-xs mt-2 ${message.role === 'user' ? 'text-blue-100' : 'text-gray-400'
-                    }`}>
-                    {new Date().toLocaleTimeString('ja-JP', {
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </div>
                 </div>
               </div>
             </div>
@@ -300,32 +293,34 @@ export function ChatInterface() {
           <form onSubmit={onSubmit} className="flex items-end space-x-3">
             <div className="flex-1 relative">
               <div className="relative">
-                <input
-                  type="text"
+                <textarea
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) => {
+                    setInput(e.target.value)
+                    // Auto-resize textarea
+                    const textarea = e.target as HTMLTextAreaElement
+                    textarea.style.height = 'auto'
+                    textarea.style.height = Math.min(textarea.scrollHeight, 96) + 'px' // max 3 lines (32px * 3)
+                  }}
                   placeholder="メッセージを入力してください..."
-                  className="w-full bg-white border-2 border-gray-200 rounded-2xl px-6 py-4 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-lg text-gray-800 placeholder-gray-400 resize-none"
+                  className="w-full bg-white border-2 border-gray-200 rounded-2xl px-6 py-4 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-lg text-gray-800 placeholder-gray-400 resize-none min-h-[56px] max-h-24 overflow-y-auto"
                   disabled={isLoading}
+                  rows={1}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
+                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                       e.preventDefault()
-                      console.log('Enter key pressed')
+                      console.log('Ctrl+Enter key pressed')
                       if (input && input.trim() && !isLoading) {
-                        console.log('Submitting via Enter key')
+                        console.log('Submitting via Ctrl+Enter key')
                         onSubmit(e as any)
                       }
                     }
                   }}
                 />
-                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                  {input && input.trim() && (
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  )}
-                </div>
+
               </div>
               <div className="absolute bottom-1 left-4 text-xs text-gray-400">
-                Enterで送信 • Shift+Enterで改行
+                Ctrl+Enterで送信 • Enterで改行
               </div>
             </div>
             <button
