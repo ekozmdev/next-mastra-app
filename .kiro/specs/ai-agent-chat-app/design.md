@@ -48,19 +48,61 @@ graph TB
 
 ### 1. Authentication Layer
 
-#### Split Configuration Pattern (Edge Compatible)
+#### Credentials Provider Configuration
 
-Auth.js v5では、Edge環境でのデータベースアダプター使用時に分割設定パターンを採用します。
+Auth.js v5でCredentials Providerを使用し、MongoDBにユーザー情報を保存します。
 
 ```typescript
 // auth.config.ts (Edge compatible)
-import GitHub from "next-auth/providers/github"
+import Credentials from "next-auth/providers/credentials"
 import type { NextAuthConfig } from "next-auth"
+import bcrypt from "bcryptjs"
+import client from "./lib/mongodb"
 
 export default { 
-  providers: [GitHub],
+  providers: [
+    Credentials({
+      name: "credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" }
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          return null
+        }
+
+        const db = client.db("chatapp")
+        const users = db.collection("users")
+        
+        const user = await users.findOne({ 
+          email: credentials.email as string 
+        })
+
+        if (!user) {
+          return null
+        }
+
+        const isPasswordValid = await bcrypt.compare(
+          credentials.password as string,
+          user.password
+        )
+
+        if (!isPasswordValid) {
+          return null
+        }
+
+        return {
+          id: user._id.toString(),
+          email: user.email,
+          name: user.name,
+        }
+      }
+    })
+  ],
   pages: {
     signIn: "/auth/signin",
+    signUp: "/auth/signup",
   }
 } satisfies NextAuthConfig
 ```
@@ -78,6 +120,18 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   callbacks: {
     authorized: async ({ auth }) => {
       return !!auth // Require authentication for protected routes
+    },
+    jwt: async ({ token, user }) => {
+      if (user) {
+        token.id = user.id
+      }
+      return token
+    },
+    session: async ({ session, token }) => {
+      if (token) {
+        session.user.id = token.id as string
+      }
+      return session
     },
   },
   ...authConfig,
@@ -195,6 +249,54 @@ export async function POST(req: Request) {
 }
 ```
 
+#### User Registration API Route
+```typescript
+// app/api/auth/register/route.ts
+import { createUser } from "@/lib/user-service"
+import { NextRequest } from "next/server"
+
+export async function POST(req: NextRequest) {
+  try {
+    const { name, email, password } = await req.json()
+    
+    // Basic validation
+    if (!name || !email || !password) {
+      return Response.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      )
+    }
+    
+    if (password.length < 6) {
+      return Response.json(
+        { error: "Password must be at least 6 characters" },
+        { status: 400 }
+      )
+    }
+    
+    const userId = await createUser({ name, email, password })
+    
+    return Response.json(
+      { message: "User created successfully", userId },
+      { status: 201 }
+    )
+  } catch (error) {
+    if (error instanceof Error && error.message === "User already exists") {
+      return Response.json(
+        { error: "User already exists" },
+        { status: 409 }
+      )
+    }
+    
+    console.error("Registration error:", error)
+    return Response.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    )
+  }
+}
+```
+
 #### Alternative SSE Implementation (if needed)
 ```typescript
 // app/api/chat-sse/route.ts
@@ -281,6 +383,59 @@ if (process.env.NODE_ENV === "development") {
 }
 
 export default client
+```
+
+#### User Service
+```typescript
+// lib/user-service.ts
+import client from "./mongodb"
+import { ObjectId } from "mongodb"
+import bcrypt from "bcryptjs"
+
+export interface User {
+  _id?: ObjectId
+  name: string
+  email: string
+  password: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export async function createUser(userData: {
+  name: string
+  email: string
+  password: string
+}) {
+  const db = client.db("chatapp")
+  const users = db.collection<User>("users")
+  
+  // Check if user already exists
+  const existingUser = await users.findOne({ email: userData.email })
+  if (existingUser) {
+    throw new Error("User already exists")
+  }
+  
+  // Hash password
+  const hashedPassword = await bcrypt.hash(userData.password, 12)
+  
+  const user: Omit<User, "_id"> = {
+    name: userData.name,
+    email: userData.email,
+    password: hashedPassword,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }
+  
+  const result = await users.insertOne(user)
+  return result.insertedId
+}
+
+export async function getUserByEmail(email: string) {
+  const db = client.db("chatapp")
+  const users = db.collection<User>("users")
+  
+  return await users.findOne({ email })
+}
 ```
 
 #### Chat Service
@@ -482,6 +637,239 @@ export function Providers({ children }: { children: React.ReactNode }) {
 }
 ```
 
+#### Authentication Forms
+```typescript
+// components/auth/signin-form.tsx
+"use client"
+
+import { useState } from "react"
+import { signIn } from "next-auth/react"
+import { useRouter } from "next/navigation"
+import { Mail, Lock, Eye, EyeOff } from "lucide-react"
+
+export function SignInForm() {
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+  const router = useRouter()
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError("")
+
+    try {
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      })
+
+      if (result?.error) {
+        setError("メールアドレスまたはパスワードが正しくありません")
+      } else {
+        router.push("/")
+      }
+    } catch (error) {
+      setError("ログインに失敗しました")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div>
+        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+          メールアドレス
+        </label>
+        <div className="relative">
+          <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="your@email.com"
+            required
+          />
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+          パスワード
+        </label>
+        <div className="relative">
+          <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <input
+            id="password"
+            type={showPassword ? "text" : "password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="パスワードを入力"
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={isLoading}
+        className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+      >
+        {isLoading ? "ログイン中..." : "ログイン"}
+      </button>
+    </form>
+  )
+}
+```
+
+```typescript
+// components/auth/signup-form.tsx
+"use client"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { User, Mail, Lock, Eye, EyeOff } from "lucide-react"
+
+export function SignUpForm() {
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+  const router = useRouter()
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError("")
+
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || "登録に失敗しました")
+        return
+      }
+
+      // Registration successful, redirect to signin
+      router.push("/auth/signin?message=registration-success")
+    } catch (error) {
+      setError("登録に失敗しました")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div>
+        <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+          名前
+        </label>
+        <div className="relative">
+          <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <input
+            id="name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="お名前を入力"
+            required
+          />
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+          メールアドレス
+        </label>
+        <div className="relative">
+          <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="your@email.com"
+            required
+          />
+        </div>
+      </div>
+
+      <div>
+        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+          パスワード
+        </label>
+        <div className="relative">
+          <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <input
+            id="password"
+            type={showPassword ? "text" : "password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="6文字以上のパスワード"
+            required
+            minLength={6}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </button>
+        </div>
+        <p className="text-sm text-gray-500 mt-1">6文字以上で入力してください</p>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={isLoading}
+        className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+      >
+        {isLoading ? "登録中..." : "アカウント作成"}
+      </button>
+    </form>
+  )
+}
+```
+
 #### Root Layout with Providers
 ```typescript
 // app/layout.tsx
@@ -504,15 +892,23 @@ export default function RootLayout({
 
 ## Data Models
 
-### User Model (Auth.js)
+### User Model (Custom + Auth.js)
 ```typescript
-// Auth.jsが自動的に管理するユーザーモデル
+// MongoDBに保存するカスタムユーザーモデル
 interface User {
+  _id: ObjectId
+  name: string
+  email: string
+  password: string // bcryptでハッシュ化
+  createdAt: Date
+  updatedAt: Date
+}
+
+// Auth.jsセッション用のユーザー型
+interface SessionUser {
   id: string
   name?: string
   email?: string
-  image?: string
-  emailVerified?: Date
 }
 ```
 
@@ -672,11 +1068,13 @@ export default nextConfig
     "@mastra/openai": "latest",
     "@ai-sdk/react": "latest",
     "mongodb": "^6.0.0",
+    "bcryptjs": "^2.4.3",
     "tailwindcss": "^3.0.0",
     "lucide-react": "latest"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/bcryptjs": "^2.4.6",
     "typescript": "^5.0.0",
     "@tailwindcss/typography": "^0.5.0",
     "autoprefixer": "^10.0.0",
