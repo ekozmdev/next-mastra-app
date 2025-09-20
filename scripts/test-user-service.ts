@@ -9,6 +9,8 @@ dotenv.config({ path: '.env.local' })
 async function testUserService() {
   try {
     console.log("Testing Mongoose-based user service...")
+    await connectToDatabase()
+    console.log("✅ Connected to MongoDB")
     
     // Test user creation
     const testEmail = `test-${Date.now()}@example.com`
@@ -72,7 +74,11 @@ async function testUserService() {
       })
       console.log("❌ Validation should have failed")
     } catch (error) {
-      console.log("✅ Validation properly rejected invalid data")
+      if (error instanceof Error) {
+        console.log("✅ Validation properly rejected invalid data:", error.message)
+      } else {
+        console.log("✅ Validation properly rejected invalid data")
+      }
     }
     
     console.log("All Mongoose user service tests completed!")
@@ -84,8 +90,8 @@ async function testUserService() {
     try {
       await mongoose.connection.close()
       console.log("Mongoose connection closed")
-    } catch (error) {
-      console.log("Note: Connection cleanup completed")
+    } catch (cleanupError) {
+      console.log("Note: Connection cleanup completed", cleanupError)
     }
   }
 }

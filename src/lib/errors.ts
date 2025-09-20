@@ -14,7 +14,7 @@ export class APIError extends Error {
 }
 
 export class ValidationError extends APIError {
-  constructor(message: string, field?: string) {
+  constructor(message: string, public field?: string) {
     super(message, 400, 'VALIDATION_ERROR')
     this.name = 'ValidationError'
   }
@@ -104,9 +104,9 @@ export function handleAPIError(error: unknown): Response {
  * Async error wrapper for API routes
  */
 export function withErrorHandler(
-  handler: (req: Request, context?: any) => Promise<Response>
+  handler: (req: Request, context?: Record<string, unknown>) => Promise<Response>
 ) {
-  return async (req: Request, context?: any): Promise<Response> => {
+  return async (req: Request, context?: Record<string, unknown>): Promise<Response> => {
     try {
       return await handler(req, context)
     } catch (error) {
@@ -118,8 +118,12 @@ export function withErrorHandler(
 /**
  * Validation helper functions
  */
-export function validateRequired(value: any, fieldName: string): void {
-  if (!value || (typeof value === 'string' && value.trim() === '')) {
+export function validateRequired(value: unknown, fieldName: string): void {
+  if (
+    value === undefined ||
+    value === null ||
+    (typeof value === 'string' && value.trim() === '')
+  ) {
     throw new ValidationError(`${fieldName} is required`)
   }
 }

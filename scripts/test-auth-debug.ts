@@ -23,24 +23,27 @@ async function testAuthDebug() {
     } catch (error) {
       console.log("auth.config.ts: ❌ Import failed:", error)
     }
-    
+
     try {
       const auth = await import("../auth")
-      console.log("auth.ts: ✅ Imported successfully")
+      console.log("auth.ts: ✅ Imported successfully", Object.keys(auth))
     } catch (error) {
       console.log("auth.ts: ❌ Import failed:", error)
     }
-    
+
     try {
       const userService = await import("../lib/user-service")
-      console.log("user-service.ts: ✅ Imported successfully")
+      console.log(
+        "user-service.ts: ✅ Imported successfully",
+        Object.keys(userService)
+      )
     } catch (error) {
       console.log("user-service.ts: ❌ Import failed:", error)
     }
-    
+
     try {
       const User = await import("../lib/models/User")
-      console.log("User model: ✅ Imported successfully")
+      console.log("User model: ✅ Imported successfully", Object.keys(User))
     } catch (error) {
       console.log("User model: ❌ Import failed:", error)
     }
@@ -62,8 +65,8 @@ async function testAuthDebug() {
   } finally {
     try {
       await mongoose.connection.close()
-    } catch (error) {
-      // Ignore cleanup errors
+    } catch (cleanupError) {
+      console.log("MongoDB cleanup warning:", cleanupError)
     }
   }
 }

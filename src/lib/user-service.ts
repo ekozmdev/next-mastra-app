@@ -1,6 +1,7 @@
+import bcrypt from "bcryptjs";
 import connectToDatabase from "./mongodb";
 import User, { IUser } from "./models/User";
-import { ConflictError, DatabaseError, NotFoundError } from "./errors";
+import { ConflictError, DatabaseError } from "./errors";
 
 export async function createUser(userData: {
   name: string;
@@ -66,7 +67,6 @@ export async function verifyPassword(plainPassword: string, user: IUser): Promis
 // Alternative function for direct password comparison (backward compatibility)
 export async function verifyPasswordDirect(plainPassword: string, hashedPassword: string): Promise<boolean> {
   try {
-    const bcrypt = require('bcryptjs');
     return await bcrypt.compare(plainPassword, hashedPassword);
   } catch (error) {
     console.error("Error in direct password verification:", error);

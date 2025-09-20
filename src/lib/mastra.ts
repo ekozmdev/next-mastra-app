@@ -3,10 +3,8 @@ import { Agent } from "@mastra/core/agent"
 import { createOpenAI } from "@ai-sdk/openai"
 import { currentTimeTool } from "./tools/current-time"
 
-// Debug: Check if API key is loaded (only log first few characters for security)
-if (process.env.OPENAI_API_KEY) {
-  console.log('OpenAI API Key loaded:', process.env.OPENAI_API_KEY.substring(0, 7) + '...')
-} else {
+// Ensure the API key is provided without leaking it to logs
+if (!process.env.OPENAI_API_KEY) {
   console.error('OPENAI_API_KEY environment variable is not set!')
 }
 

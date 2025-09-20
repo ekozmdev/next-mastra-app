@@ -8,12 +8,13 @@ async function testAuthConfig() {
     console.log("Testing Auth.js configuration...")
     
     // Test that auth config can be imported
-    const authConfig = await import("../auth.config")
-    console.log("✅ Auth config imported successfully")
-    
+    const authConfigModule = await import("../auth.config")
+    const providerCount = authConfigModule.authOptions.providers.length
+    console.log(`✅ Auth config imported successfully (providers: ${providerCount})`)
+
     // Test that main auth can be imported
-    const auth = await import("../auth")
-    console.log("✅ Auth module imported successfully")
+    const authModule = await import("../auth")
+    console.log("✅ Auth module exported handlers:", Object.keys(authModule))
     
     // Check environment variables
     console.log("Checking environment variables...")

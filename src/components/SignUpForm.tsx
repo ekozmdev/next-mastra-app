@@ -12,7 +12,7 @@ export default function SignUpForm() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
-  const { error, handleAPIError, clearError } = useErrorHandler()
+  const { error, handleAPIError, clearError, handleError } = useErrorHandler()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -20,18 +20,12 @@ export default function SignUpForm() {
 
     // Client-side validation
     if (password !== confirmPassword) {
-      handleAPIError({ 
-        json: async () => ({ error: "Passwords do not match", code: "VALIDATION_ERROR" }),
-        status: 400 
-      } as Response)
+      handleError(new Error("Passwords do not match"))
       return
     }
 
     if (password.length < 6) {
-      handleAPIError({ 
-        json: async () => ({ error: "Password must be at least 6 characters long", code: "VALIDATION_ERROR" }),
-        status: 400 
-      } as Response)
+      handleError(new Error("Password must be at least 6 characters long"))
       return
     }
 
@@ -55,11 +49,8 @@ export default function SignUpForm() {
       } else {
         await handleAPIError(response)
       }
-    } catch (error) {
-      handleAPIError({ 
-        json: async () => ({ error: "Network error. Please check your connection and try again.", code: "NETWORK_ERROR" }),
-        status: 0 
-      } as Response)
+    } catch {
+      handleError(new Error("Network error. Please check your connection and try again."))
     } finally {
       setIsLoading(false)
     }

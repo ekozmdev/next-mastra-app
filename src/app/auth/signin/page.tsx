@@ -6,10 +6,11 @@ import SignInForm from "@/components/SignInForm"
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: { message?: string }
+  searchParams: Promise<{ message?: string }>
 }) {
   const session = await getAuthSession()
-  
+  const { message } = await searchParams
+
   if (session) {
     redirect("/")
   }
@@ -32,9 +33,9 @@ export default async function SignInPage({
           </p>
         </div>
         
-        {searchParams.message && (
+        {message && (
           <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
-            {searchParams.message}
+            {message}
           </div>
         )}
 

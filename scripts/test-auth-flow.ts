@@ -1,12 +1,14 @@
 import dotenv from "dotenv"
 import { createUser, getUserByEmail } from "../src/lib/user-service"
 import connectToDatabase from "../src/lib/mongodb"
+import User from "../src/lib/models/User"
 import mongoose from "mongoose"
 
 // Load environment variables
 dotenv.config({ path: '.env.local' })
 
 async function testAuthFlow() {
+  const userIdsToCleanup: string[] = []
   try {
     console.log("Testing complete authentication flow...")
     
@@ -24,6 +26,7 @@ async function testAuthFlow() {
       password: testPassword
     })
     console.log("✅ User created with ID:", userId)
+    userIdsToCleanup.push(userId)
     
     // Verify user was created
     console.log("2. Verifying user creation...")
@@ -59,6 +62,15 @@ async function testAuthFlow() {
   } catch (error) {
     console.error("❌ Authentication flow test failed:", error)
   } finally {
+    if (userIdsToCleanup.length > 0) {
+      try {
+        await User.deleteMany({ _id: { $in: userIdsToCleanup } })
+        console.log(`🧹 Cleaned up ${userIdsToCleanup.length} test user(s)`)
+      } catch (cleanupError) {
+        console.warn("⚠️ Failed to remove test users:", cleanupError)
+      }
+    }
+
     // Close connection
     await mongoose.connection.close()
     console.log("Database connection closed")

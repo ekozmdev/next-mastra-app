@@ -1,3 +1,4 @@
+import type { FilterQuery } from "mongoose";
 import connectToDatabase from "./mongodb";
 import ChatMessage, { IChatMessage } from "./models/ChatMessage";
 import { DatabaseError, ValidationError } from "./errors";
@@ -75,7 +76,7 @@ export async function getChatHistory(
     }
     
     // Build query
-    const query: any = { userId };
+    const query: FilterQuery<IChatMessage> = { userId };
     
     if (sessionId) {
       query.sessionId = sessionId;
@@ -130,7 +131,7 @@ export async function deleteChatHistory(
       throw new ValidationError("User ID is required");
     }
     
-    const query: any = { userId };
+    const query: FilterQuery<IChatMessage> = { userId };
     if (sessionId) {
       query.sessionId = sessionId;
     }
@@ -157,9 +158,9 @@ export async function getChatSessions(userId: string): Promise<string[]> {
       throw new ValidationError("User ID is required");
     }
     
-    const sessions = await ChatMessage.distinct('sessionId', { 
-      userId, 
-      sessionId: { $exists: true, $ne: null } 
+    const sessions = await ChatMessage.distinct('sessionId', {
+      userId,
+      sessionId: { $exists: true, $ne: null }
     });
     
     return sessions.filter(Boolean); // Remove null/undefined values
@@ -183,7 +184,7 @@ export async function getMessageCount(userId: string, sessionId?: string): Promi
       throw new ValidationError("User ID is required");
     }
     
-    const query: any = { userId };
+    const query: FilterQuery<IChatMessage> = { userId };
     if (sessionId) {
       query.sessionId = sessionId;
     }
