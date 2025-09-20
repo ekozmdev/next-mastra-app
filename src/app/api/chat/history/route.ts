@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/auth.config"
-import { getChatHistory, getChatSessions } from "@/lib/chat-service"
+import { getChatHistory, getChatSessions, deleteChatHistory } from "@/lib/chat-service"
 import { 
   withErrorHandler, 
   AuthenticationError, 
@@ -54,5 +54,30 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   } catch (error) {
     console.error("Database error in chat history:", error)
     throw new DatabaseError("Failed to retrieve chat history")
+  }
+})
+
+export const DELETE = withErrorHandler(async (req: NextRequest) => {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    throw new AuthenticationError("Authentication required")
+  }
+
+  const { searchParams } = new URL(req.url)
+  const sessionId = searchParams.get('sessionId')
+
+  if (!sessionId) {
+    throw new ValidationError("sessionId is required")
+  }
+
+  try {
+    const result = await deleteChatHistory(session.user.id, sessionId)
+
+    return Response.json({
+      deletedCount: result.deletedCount
+    })
+  } catch (error) {
+    console.error("Database error in chat history delete:", error)
+    throw new DatabaseError("Failed to delete chat history")
   }
 })
