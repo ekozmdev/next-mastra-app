@@ -4,7 +4,7 @@ import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import type { UIMessage, UIMessagePart } from 'ai'
 import { useSession } from 'next-auth/react'
-import { Send, Clock, User, Bot, Sparkles, MessageCircle } from 'lucide-react'
+import { Send, User, Bot, MessageCircle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent, KeyboardEvent } from 'react'
 import { useErrorHandler } from '@/hooks/useErrorHandler'
@@ -48,6 +48,7 @@ export function ChatInterface() {
   })
 
   const chatMessages = messages as UIMessage[]
+  const lastMessage = chatMessages[chatMessages.length - 1]
 
   const isLoading = status === 'submitted' || status === 'streaming'
 
@@ -88,12 +89,18 @@ export function ChatInterface() {
       return
     }
 
+    if (chatMessages.length === 0) {
+      return
+    }
+
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
 
   useEffect(() => {
     setIsTyping(isLoading)
   }, [isLoading])
+
+  const showTypingIndicator = isTyping && (!lastMessage || lastMessage.role !== 'assistant')
 
   if (!session) {
     return (
@@ -124,39 +131,19 @@ export function ChatInterface() {
           )}
 
           {chatMessages.length === 0 && (
-            <div className="text-center py-16 animate-fade-in">
-              <div className="relative mb-8">
-                <div className="w-20 h-20 bg-gradient-to-r from-blue-100 to-purple-100 rounded-2xl flex items-center justify-center mx-auto shadow-lg">
-                  <Clock className="w-10 h-10 text-blue-500" />
-                </div>
-                <div className="absolute -top-2 -right-2 w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center">
-                  <Sparkles className="w-3 h-3 text-white" />
-                </div>
-              </div>
-              <h3 className="text-2xl font-bold text-gray-800 mb-3">チャットを開始しましょう</h3>
-              <p className="text-gray-600 text-lg mb-6">「今何時？」と聞いてみてください</p>
-              <div className="flex flex-wrap justify-center gap-2 max-w-md mx-auto">
-                <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
-                  現在時刻
-                </span>
-                <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
-                  質問応答
-                </span>
-                <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-                  会話
-                </span>
-              </div>
-            </div>
+            <div className="py-16" />
           )}
 
-          {chatMessages.map((message, index) => (
+          {chatMessages.map((message) => (
             <div
               key={message.id}
-              className="flex justify-start animate-slide-up"
-              style={{ animationDelay: `${index * 0.1}s` }}
+              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className="flex max-w-xs sm:max-w-sm lg:max-w-lg xl:max-w-xl flex-row items-start space-x-3"
+                className={`flex max-w-xs sm:max-w-sm lg:max-w-lg xl:max-w-xl items-start space-x-3 ${message.role === 'user'
+                  ? 'flex-row-reverse space-x-reverse'
+                  : 'flex-row'
+                  }`}
               >
                 <div
                   className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md ${message.role === 'user'
@@ -171,9 +158,9 @@ export function ChatInterface() {
                   )}
                 </div>
                 <div
-                  className={`px-4 py-3 rounded-2xl rounded-bl-md shadow-lg transition-all duration-200 hover:shadow-xl ${message.role === 'user'
-                    ? 'bg-blue-100 text-blue-900 border border-blue-200'
-                    : 'bg-slate-100 text-slate-900 border border-slate-200'
+                  className={`px-4 py-3 rounded-2xl shadow-lg transition-all duration-200 hover:shadow-xl ${message.role === 'user'
+                    ? 'rounded-br-md bg-blue-100 text-blue-900 border border-blue-200'
+                    : 'rounded-bl-md bg-slate-100 text-slate-900 border border-slate-200'
                     }`}
                 >
                   <div className="text-sm leading-relaxed whitespace-pre-wrap">
@@ -274,7 +261,7 @@ export function ChatInterface() {
             </div>
           ))}
 
-          {isTyping && (
+          {showTypingIndicator && (
             <div className="flex justify-start animate-fade-in">
               <div className="flex items-start space-x-3">
                 <div className="w-10 h-10 bg-gradient-to-r from-gray-100 to-gray-200 rounded-xl flex items-center justify-center shadow-md">
@@ -308,7 +295,7 @@ export function ChatInterface() {
                   onChange={handleChange}
                   onKeyDown={handleKeyDown}
                   placeholder="メッセージを入力してください..."
-                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 pr-7 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-slate-400 transition-all duration-200 shadow-sm text-slate-900 placeholder-slate-400 resize-none min-h-[40px] max-h-24 overflow-y-auto"
+                  className="w-full bg-white border border-slate-300 rounded-md px-3 py-2 pr-7 focus:outline-none focus:ring-1 focus:ring-slate-300 focus:border-slate-400 transition-all duration-200 shadow-sm text-slate-900 placeholder-slate-400 resize-none min-h-[40px] max-h-24 overflow-y-auto"
                   disabled={isLoading}
                   rows={1}
                 />
